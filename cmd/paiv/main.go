@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	. "github.com/jonhadfield/packer-azure-image-version"
 	"github.com/urfave/cli/v2"
@@ -9,6 +10,9 @@ import (
 )
 
 var version, versionOutput, tag, sha, buildDate string
+
+const strMoreThanOneTrue = "more than one is true"
+const strNoneTrue = "none are true"
 
 func main() {
 	if tag != "" && buildDate != "" {
@@ -92,14 +96,14 @@ func main() {
 			Action: func(c *cli.Context) error {
 				input := c.Args().Slice()
 				if len(input) == 0 {
-					return fmt.Errorf("at least one path is required")
+					return errors.New("at least one path is required")
 				}
 
 				if err := checkOneTrue(c.Bool("inc-major"),
 					c.Bool("inc-minor"),
 					c.Bool("inc-patch")); err != nil {
 
-					if err.Error() == "none are true" {
+					if err.Error() == strNoneTrue {
 						_ = cli.ShowSubcommandHelp(c)
 
 						return fmt.Errorf("increment option required")
@@ -123,6 +127,7 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		fmt.Println()
 		fmt.Printf("error: %v\n\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -131,7 +136,7 @@ func checkOneTrue(i ...bool) error {
 	for x := range i {
 		if i[x] {
 			if foundTrue {
-				return fmt.Errorf("more than one is true")
+				return fmt.Errorf(strMoreThanOneTrue)
 			}
 
 			foundTrue = true
@@ -139,7 +144,7 @@ func checkOneTrue(i ...bool) error {
 	}
 
 	if !foundTrue {
-		return fmt.Errorf("none are true")
+		return fmt.Errorf(strNoneTrue)
 	}
 
 	return nil
