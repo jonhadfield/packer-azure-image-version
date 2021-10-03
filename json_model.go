@@ -106,7 +106,7 @@ type Builder struct {
 	ManagedImageStorageAccountType             string                        `json:"managed_image_storage_account_type,omitempty"`
 	ManagedImageOSDiskSnapshotName             string                        `json:"managed_image_os_disk_snapshot_name,omitempty"`
 	ManagedImageDataDiskSnapshotPrefix         string                        `json:"managed_image_data_disk_snapshot_prefix,omitempty"`
-	KeepOSDisk                                 bool                          `json:"keep_os_disk,omitempty,omitempty"`
+	KeepOSDisk                                 bool                          `json:"keep_os_disk,omitempty"`
 	ManagedImageZoneResilient                  bool                          `json:"managed_image_zone_resilient,omitempty"`
 	AzureTags                                  map[string]string             `json:"azure_tags,omitempty"`
 	AzureTag                                   []NameValue                   `json:"azure_tag,omitempty"`

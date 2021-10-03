@@ -70,6 +70,7 @@ func main() {
 
 						return fmt.Errorf("invalid image definition id")
 					}
+
 					return GetImageVersions(GetImageVersionsInput{
 						SubscriptionID:    c.String("subscription-id"),
 						ImageDefinitionID: input[0],

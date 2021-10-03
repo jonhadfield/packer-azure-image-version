@@ -42,7 +42,11 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 	var jt JSONTemplate
 
 	bb := new(bytes.Buffer)
+
 	_, err = bb.Write(data)
+	if err != nil {
+		return err
+	}
 
 	decoder := json.NewDecoder(bb)
 	if err = decoder.Decode(&jt); err != nil {
