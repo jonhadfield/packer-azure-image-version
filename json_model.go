@@ -82,6 +82,7 @@ type NameValue struct {
 type Builder struct {
 	PackerConfig
 	Config
+	Type                                       string                        `json:"type,omitempty"`
 	UserAssignedManagedIdentities              []string                      `json:"user_assigned_managed_identities,omitempty"`
 	CaptureNamePrefix                          string                        `json:"capture_name_prefix,omitempty"`
 	CaptureContainerName                       string                        `json:"capture_container_name,omitempty"`
@@ -196,4 +197,3 @@ type JSONTemplate struct {
 	Provisioners       []interface{}     `json:"provisioners,omitempty"`
 	PostProcessors     []interface{}     `json:"post-processors,omitempty"`
 }
-
