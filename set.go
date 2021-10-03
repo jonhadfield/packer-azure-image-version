@@ -116,8 +116,7 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 	}
 
 	if newVer.String() == builder.SharedGalleryDestination.SigDestinationImageVersion {
-		fmt.Println("shared gallery destination version is already at desired version:", builder.SharedGalleryDestination.SigDestinationImageVersion)
-		return nil
+		return fmt.Errorf("shared gallery destination version is already at desired version: %s", builder.SharedGalleryDestination.SigDestinationImageVersion)
 	}
 
 	builder.SharedGalleryDestination.SigDestinationImageVersion = newVer.String()

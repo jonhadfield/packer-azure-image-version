@@ -5,6 +5,8 @@ import (
 	"os"
 )
 
+const strAtLeastOnePathRequired = "at least one path is required"
+
 func init() {
 	lvl, ok := os.LookupEnv("PAIM_LOG")
 	// LOG_LEVEL not set, default to info
