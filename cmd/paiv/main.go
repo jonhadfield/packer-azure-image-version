@@ -93,6 +93,7 @@ func main() {
 				&cli.BoolFlag{Name: "inc-major"},
 				&cli.BoolFlag{Name: "inc-minor"},
 				&cli.BoolFlag{Name: "inc-patch"},
+				&cli.BoolFlag{Name: "unattended"},
 			},
 			Action: func(c *cli.Context) error {
 				input := c.Args().Slice()
@@ -115,11 +116,12 @@ func main() {
 				}
 
 				return SetImageVersions(SetImageVersionInput{
-					Paths:    input,
-					IncMajor: c.Bool("inc-major"),
-					IncMinor: c.Bool("inc-minor"),
-					IncPatch: c.Bool("inc-patch"),
-					Quiet:    c.Bool("quiet"),
+					Paths:      input,
+					IncMajor:   c.Bool("inc-major"),
+					IncMinor:   c.Bool("inc-minor"),
+					IncPatch:   c.Bool("inc-patch"),
+					Unattended: c.Bool("unattended"),
+					Quiet:      c.Bool("quiet"),
 				})
 			},
 		},

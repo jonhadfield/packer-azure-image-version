@@ -123,6 +123,12 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 		return fmt.Errorf("shared gallery destination version is already at desired version: %s", builder.SharedGalleryDestination.SigDestinationImageVersion)
 	}
 
+	// we need to remove the builder's subscription id to prevent interactive oauth authentication
+	if i.Unattended && jt.Builders[0].SubscriptionID != "" {
+		fmt.Println("stripping subscription_id from builder to allow for unattended (no oauth) build")
+		jt.Builders[0].SubscriptionID = ""
+	}
+
 	builder.SharedGalleryDestination.SigDestinationImageVersion = newVer.String()
 
 	logrus.Debugf("setting new image version to: %s", newVer.String())
@@ -152,7 +158,7 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 		return fmt.Errorf("failed to close file: %s", path)
 	}
 
-	if ! i.Quiet {
+	if !i.Quiet {
 		fmt.Printf("new shared destination gallery image version set to: %s\n", newVer.String())
 	}
 
@@ -160,9 +166,10 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 }
 
 type SetImageVersionInput struct {
-	IncMajor bool
-	IncMinor bool
-	IncPatch bool
-	Paths    []string
-	Quiet	 bool
+	IncMajor   bool
+	IncMinor   bool
+	IncPatch   bool
+	Unattended bool
+	Paths      []string
+	Quiet      bool
 }
