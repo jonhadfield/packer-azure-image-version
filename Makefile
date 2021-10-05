@@ -15,7 +15,7 @@ fmt:
 	goimports -w . && gofumpt -l -w .
 
 lint:
-	golangci-lint run --enable-all ./...
+	golangci-lint run --disable lll --disable interfacer --disable gochecknoglobals
 
 ci: lint test
 
@@ -52,7 +52,7 @@ find-updates:
 	go list -u -m -json all | go-mod-outdated -update -direct
 
 critic:
-	gocritic check -enableAll ./...
+	gocritic check  ./...
 
 gosec:
 	gosec -tests ./...

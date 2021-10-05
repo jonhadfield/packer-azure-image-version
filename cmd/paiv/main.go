@@ -94,6 +94,7 @@ func main() {
 				&cli.BoolFlag{Name: "inc-minor"},
 				&cli.BoolFlag{Name: "inc-patch"},
 				&cli.BoolFlag{Name: "unattended"},
+				&cli.BoolFlag{Name: "cli-auth"},
 			},
 			Action: func(c *cli.Context) error {
 				input := c.Args().Slice()
@@ -121,6 +122,7 @@ func main() {
 					IncMinor:   c.Bool("inc-minor"),
 					IncPatch:   c.Bool("inc-patch"),
 					Unattended: c.Bool("unattended"),
+					CLIAuth:    c.Bool("cli-auth"),
 					Quiet:      c.Bool("quiet"),
 				})
 			},
