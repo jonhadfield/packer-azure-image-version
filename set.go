@@ -124,9 +124,9 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 	}
 
 	// we need to remove the builder's subscription id to prevent interactive oauth authentication
-	if i.Unattended && jt.Builders[0].SubscriptionID != "" {
+	if i.Unattended && builder.SubscriptionID != "" {
 		fmt.Println("stripping subscription_id from builder to allow for unattended (no oauth) build")
-		jt.Builders[0].SubscriptionID = ""
+		builder.SubscriptionID = ""
 	}
 
 	builder.SharedGalleryDestination.SigDestinationImageVersion = newVer.String()
