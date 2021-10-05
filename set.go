@@ -67,7 +67,7 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 	logrus.Debugf("read SIG destination resource group: %s", builder.SharedGalleryDestination.SigDestinationResourceGroup)
 	logrus.Debugf("read SIG destination gallery name: %s", builder.SharedGalleryDestination.SigDestinationGalleryName)
 	logrus.Debugf("read SIG destination image name: %s", builder.SharedGalleryDestination.SigDestinationImageName)
-	logrus.Debugf("read SIG destination image version: %s", jt.Builders[0].SharedGalleryDestination.SigDestinationImageVersion)
+	logrus.Debugf("read SIG destination image version: %s", builder.SharedGalleryDestination.SigDestinationImageVersion)
 
 	if !allDefined(builder.SharedGalleryDestination.SigDestinationSubscription,
 		builder.SharedGalleryDestination.SigDestinationResourceGroup,
@@ -144,7 +144,7 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 		return fmt.Errorf("failed to encode json: %+v", err)
 	}
 
-	f, err := os.OpenFile(path, os.O_WRONLY, m)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, m)
 	if err != nil {
 		return fmt.Errorf("failed to open %s for writing", path)
 	}
