@@ -3,6 +3,7 @@ package packer_azure_image_version
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/Masterminds/semver/v3"
 	"github.com/sirupsen/logrus"
@@ -25,29 +26,66 @@ func SetImageVersions(i SetImageVersionInput) error {
 	return nil
 }
 
-func updateJSON(s *session, i SetImageVersionInput, data []byte, b *bytes.Buffer) (err error) {
-	var jt JSONTemplate
+func getLatestImageVersion(s *session, builder Builder) (newVer *semver.Version, err error) {
+	idi := ParseImageDefinitionID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/images/%s",
+		builder.SharedGalleryDestination.SigDestinationSubscription,
+		builder.SharedGalleryDestination.SigDestinationResourceGroup,
+		builder.SharedGalleryDestination.SigDestinationGalleryName,
+		builder.SharedGalleryDestination.SigDestinationImageName,
+	))
 
-	bb := new(bytes.Buffer)
-
-	_, err = bb.Write(data)
-	if err != nil {
-		return err
+	if err := s.getGalleryImageVersionsClient(idi.SubscriptionID); err != nil {
+		return newVer, err
 	}
 
-	decoder := json.NewDecoder(bb)
+	rawVersions, err := getGalleryImageVersions(s, idi)
+	if err != nil {
+		return newVer, err
+	}
+
+	// default to 0.0.0 if no versions exist
+	if len(rawVersions) == 0 {
+		rawVersions = []string{"0.0.0"}
+		return semver.MustParse("0.0.0"), err
+	}
+
+	vs := make([]*semver.Version, len(rawVersions))
+	for i, r := range rawVersions {
+		v, err := semver.NewVersion(r)
+		if err != nil {
+			return newVer, fmt.Errorf("error parsing version: %s", err)
+		}
+
+		vs[i] = v
+	}
+
+	sort.Sort(semver.Collection(vs))
+	logrus.Debugf("latest existing version: %s", vs[len(vs)-1].String())
+
+	return vs[len(vs)-1], nil
+
+}
+
+func parseJSONTemplate(data []byte) (jt JSONTemplate, err error) {
+	b := new(bytes.Buffer)
+	_, err = b.Write(data)
+	if err != nil {
+		return jt, err
+	}
+
+	decoder := json.NewDecoder(b)
 	if err = decoder.Decode(&jt); err != nil {
-		return fmt.Errorf("failed to process json: %+v", err)
+		return jt, fmt.Errorf("failed to process json: %+v", err)
 	}
 
 	var builder Builder
 	switch len(jt.Builders) {
 	case 0:
-		return fmt.Errorf("no builders found in packer file")
+		return jt, fmt.Errorf("no builders found in packer file")
 	case 1:
 		builder = jt.Builders[0]
 	default:
-		return fmt.Errorf("multiple builders defined but only one is currently supported")
+		return jt, fmt.Errorf("multiple builders defined but only one is currently supported")
 	}
 
 	logrus.Debugf("read SIG destination subscription: %s", builder.SharedGalleryDestination.SigDestinationSubscription)
@@ -60,214 +98,71 @@ func updateJSON(s *session, i SetImageVersionInput, data []byte, b *bytes.Buffer
 		builder.SharedGalleryDestination.SigDestinationResourceGroup,
 		builder.SharedGalleryDestination.SigDestinationGalleryName,
 		builder.SharedGalleryDestination.SigDestinationImageName) {
-		return fmt.Errorf("shared gallery destination invalid or undefined")
+		return jt, fmt.Errorf("shared gallery destination invalid or undefined")
 	}
 
-	idi := ParseImageDefinitionID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/images/%s",
-		builder.SharedGalleryDestination.SigDestinationSubscription,
-		builder.SharedGalleryDestination.SigDestinationResourceGroup,
-		builder.SharedGalleryDestination.SigDestinationGalleryName,
-		builder.SharedGalleryDestination.SigDestinationImageName,
-	))
+	return jt, nil
+}
 
-	if err := s.getGalleryImageVersionsClient(idi.SubscriptionID); err != nil {
-		return err
-	}
-
-	rawVersions, err := getGalleryImageVersions(s, idi)
-	if err != nil {
-		return err
-	}
-
-	vs := make([]*semver.Version, len(rawVersions))
-	for i, r := range rawVersions {
-		v, err := semver.NewVersion(r)
-		if err != nil {
-			return fmt.Errorf("error parsing version: %s", err)
-		}
-
-		vs[i] = v
-	}
-
-	var newVer semver.Version
-
-	sort.Sort(semver.Collection(vs))
-	logrus.Debugf("latest existing version: %s", vs[len(vs)-1].String())
-
+func incremenentSemVer(i SetImageVersionInput, t string, c semver.Version) (n semver.Version) {
 	switch {
 	case i.IncMajor:
-		newVer = vs[len(vs)-1].IncMajor()
-		logrus.Debugf("incremented major with result: %s", newVer.String())
+		n = c.IncMajor()
+		logrus.Debugf("incremented major with result: %s", n.String())
 	case i.IncMinor:
-		newVer = vs[len(vs)-1].IncMinor()
-		logrus.Debugf("incremented minor with result: %s", newVer.String())
+		n = c.IncMinor()
+		logrus.Debugf("incremented minor with result: %s", n.String())
 	case i.IncPatch:
-		newVer = vs[len(vs)-1].IncPatch()
-		logrus.Debugf("incremented patch with result: %s", newVer.String())
+		n = c.IncPatch()
+		logrus.Debugf("incremented patch with result: %s", n.String())
 	}
 
-	if newVer.String() == builder.SharedGalleryDestination.SigDestinationImageVersion {
-		fmt.Printf("shared gallery destination version is already at desired version: %s\n", builder.SharedGalleryDestination.SigDestinationImageVersion)
+	if n.String() == t {
+		fmt.Printf("shared gallery destination version is already at desired version: %s\n", t)
 
-		return nil
+		return n
 	}
 
+	return n
+}
+
+func updateJSONTemplate(v semver.Version, t *JSONTemplate, i SetImageVersionInput) {
 	// we need to remove the builder's subscription id to prevent interactive oauth authentication
-	if i.Unattended && builder.SubscriptionID != "" {
-		fmt.Println("stripping subscription_id from builder to allow for unattended (no oauth) build")
-		builder.SubscriptionID = ""
+	if i.Unattended && t.Builders[0].SubscriptionID != "" {
+		logrus.Print("stripping subscription_id from builder to allow for unattended (no oauth) build")
+		t.Builders[0].SubscriptionID = ""
 	}
 
 	if i.CLIAuth {
-		builder.UseAzureCLIAuth = true
+		t.Builders[0].UseAzureCLIAuth = true
 	}
 
-	builder.SharedGalleryDestination.SigDestinationImageVersion = newVer.String()
+	if i.publicIP {
+		t.Builders[0].PrivateVirtualNetworkWithPublicIp = true
+	}
 
-	logrus.Debugf("setting new image version to: %s", newVer.String())
+	t.Builders[0].SharedGalleryDestination.SigDestinationImageVersion = v.String()
 
-	jt.Builders[0] = builder
+	logrus.Debugf("setting new image version to: %s", v.String())
 
-	// b := new(bytes.Buffer)
+	return
+}
+
+func encodeJSONTemplate(t JSONTemplate) (b *bytes.Buffer, err error) {
+	b = new(bytes.Buffer)
 	e := json.NewEncoder(b)
+
+	if b == nil {
+		return b, errors.New("something went wrong")
+	}
 
 	e.SetEscapeHTML(false)
 	e.SetIndent("", "  ")
-	if err = e.Encode(jt); err != nil {
-		return fmt.Errorf("failed to encode json: %+v", err)
+	if err = e.Encode(t); err != nil {
+		return b, fmt.Errorf("failed to encode json: %+v", err)
 	}
 
-	return err
-}
-
-func updateHCL(s *session, i SetImageVersionInput, data []byte, b *bytes.Buffer) (err error) {
-	packerazure.
-	// var buf bytes.Buffer
-	// f := HCL2Formatter{
-	// 	Output:   &buf,
-	// 	ShowDiff: true,
-	// }
-	//
-	// _, diags := f.Format("testdata/format/unformatted.pkr.hcl")
-	// if diags.HasErrors() {
-	// 	t.Fatalf("the call to Format failed unexpectedly %s", diags.Error())
-	// }
-
-	// c := &ppa.Config{}
-	// c.Prepare()
-	//
-	// var jt JSONTemplate
-	//
-	// bb := new(bytes.Buffer)
-	//
-	// _, err = bb.Write(data)
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// decoder := json.NewDecoder(bb)
-	// if err = decoder.Decode(&jt); err != nil {
-	// 	return fmt.Errorf("failed to process json: %+v", err)
-	// }
-	//
-	// var builder Builder
-	// switch len(jt.Builders) {
-	// case 0:
-	// 	return fmt.Errorf("no builders found in packer file")
-	// case 1:
-	// 	builder = jt.Builders[0]
-	// default:
-	// 	return fmt.Errorf("multiple builders defined but only one is currently supported")
-	// }
-	//
-	// logrus.Debugf("read SIG destination subscription: %s", builder.SharedGalleryDestination.SigDestinationSubscription)
-	// logrus.Debugf("read SIG destination resource group: %s", builder.SharedGalleryDestination.SigDestinationResourceGroup)
-	// logrus.Debugf("read SIG destination gallery name: %s", builder.SharedGalleryDestination.SigDestinationGalleryName)
-	// logrus.Debugf("read SIG destination image name: %s", builder.SharedGalleryDestination.SigDestinationImageName)
-	// logrus.Debugf("read SIG destination image version: %s", builder.SharedGalleryDestination.SigDestinationImageVersion)
-	//
-	// if !allDefined(builder.SharedGalleryDestination.SigDestinationSubscription,
-	// 	builder.SharedGalleryDestination.SigDestinationResourceGroup,
-	// 	builder.SharedGalleryDestination.SigDestinationGalleryName,
-	// 	builder.SharedGalleryDestination.SigDestinationImageName) {
-	// 	return fmt.Errorf("shared gallery destination invalid or undefined")
-	// }
-	//
-	// idi := ParseImageDefinitionID(fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/galleries/%s/images/%s",
-	// 	builder.SharedGalleryDestination.SigDestinationSubscription,
-	// 	builder.SharedGalleryDestination.SigDestinationResourceGroup,
-	// 	builder.SharedGalleryDestination.SigDestinationGalleryName,
-	// 	builder.SharedGalleryDestination.SigDestinationImageName,
-	// ))
-	//
-	// if err := s.getGalleryImageVersionsClient(idi.SubscriptionID); err != nil {
-	// 	return err
-	// }
-	//
-	// rawVersions, err := getGalleryImageVersions(s, idi)
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// vs := make([]*semver.Version, len(rawVersions))
-	// for i, r := range rawVersions {
-	// 	v, err := semver.NewVersion(r)
-	// 	if err != nil {
-	// 		return fmt.Errorf("error parsing version: %s", err)
-	// 	}
-	//
-	// 	vs[i] = v
-	// }
-	//
-	// var newVer semver.Version
-	//
-	// sort.Sort(semver.Collection(vs))
-	// logrus.Debugf("latest existing version: %s", vs[len(vs)-1].String())
-	//
-	// switch {
-	// case i.IncMajor:
-	// 	newVer = vs[len(vs)-1].IncMajor()
-	// 	logrus.Debugf("incremented major with result: %s", newVer.String())
-	// case i.IncMinor:
-	// 	newVer = vs[len(vs)-1].IncMinor()
-	// 	logrus.Debugf("incremented minor with result: %s", newVer.String())
-	// case i.IncPatch:
-	// 	newVer = vs[len(vs)-1].IncPatch()
-	// 	logrus.Debugf("incremented patch with result: %s", newVer.String())
-	// }
-	//
-	// if newVer.String() == builder.SharedGalleryDestination.SigDestinationImageVersion {
-	// 	fmt.Printf("shared gallery destination version is already at desired version: %s\n", builder.SharedGalleryDestination.SigDestinationImageVersion)
-	//
-	// 	return b, nil
-	// }
-	//
-	// // we need to remove the builder's subscription id to prevent interactive oauth authentication
-	// if i.Unattended && builder.SubscriptionID != "" {
-	// 	fmt.Println("stripping subscription_id from builder to allow for unattended (no oauth) build")
-	// 	builder.SubscriptionID = ""
-	// }
-	//
-	// if i.CLIAuth {
-	// 	builder.UseAzureCLIAuth = true
-	// }
-	//
-	// builder.SharedGalleryDestination.SigDestinationImageVersion = newVer.String()
-	//
-	// logrus.Debugf("setting new image version to: %s", newVer.String())
-	//
-	// jt.Builders[0] = builder
-	//
-	// // b := new(bytes.Buffer)
-	// e := json.NewEncoder(b)
-	//
-	// e.SetEscapeHTML(false)
-	// e.SetIndent("", "  ")
-	// if err = e.Encode(jt); err != nil {
-	// 	return fmt.Errorf("failed to encode json: %+v", err)
-	// }
-	//
-	// return err
+	return b, nil
 }
 
 func setPackerImageGalleryDestinationImageVersion(s *session, path string, i SetImageVersionInput) error {
@@ -287,11 +182,32 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 	var b *bytes.Buffer
 
 	// if filename ends with json, then use json
+	var newVer string
 	switch filepath.Ext(path) {
-	case "json":
-		err = updateJSON(s, i, data, b)
-	case "hcl":
-		err = updateHCL(s, i, data, b)
+	case ".json":
+		jt, err := parseJSONTemplate(data)
+		if err != nil {
+			return err
+		}
+		liv, err := getLatestImageVersion(s, jt.Builders[0])
+		if err != nil {
+			return err
+		}
+
+		nv := incremenentSemVer(i, jt.Builders[0].SharedGalleryDestination.SigDestinationImageVersion, *liv)
+
+		updateJSONTemplate(nv, &jt, i)
+
+		b, err = encodeJSONTemplate(jt)
+		if err != nil {
+			return err
+		}
+
+		newVer = jt.Builders[0].SharedGalleryDestination.SigDestinationImageVersion
+	case ".hcl":
+		err = errors.New("not implemented")
+	default:
+		err = fmt.Errorf("unexpected file extension '%s'", filepath.Ext(path))
 	}
 	if err != nil {
 		return err
@@ -312,7 +228,7 @@ func setPackerImageGalleryDestinationImageVersion(s *session, path string, i Set
 	}
 
 	if !i.Quiet {
-		fmt.Printf("new shared destination gallery image version set to: %s\n", newVer.String())
+		fmt.Printf("new shared destination gallery image version set to: %s\n", newVer)
 	}
 
 	return nil
@@ -324,6 +240,7 @@ type SetImageVersionInput struct {
 	IncPatch   bool
 	Unattended bool
 	CLIAuth    bool
+	publicIP   bool
 	Paths      []string
 	Quiet      bool
 }

@@ -1,0 +1,87 @@
+{
+  "builders": [
+    {
+      "use_azure_cli_auth": true,
+      "type": "azure-arm",
+      "shared_image_gallery": {
+        "subscription": "c35099bd-32c2-6180-bc89-85t7382bb24c",
+        "resource_group": "example-source-resource-group",
+        "gallery_name": "example-source-gallery",
+        "image_name": "example-source-image-name",
+        "image_version": "1.2.3"
+      },
+      "shared_image_gallery_destination": {
+        "subscription": "b24988ac-6180-42a0-ab88-20f7382dd24c",
+        "resource_group": "example-destination-resource-group",
+        "gallery_name": "example-destination-gallery",
+        "image_name": "example-new-image-name",
+        "image_version": "0.0.1",
+        "replication_regions": [
+          "canadacentral"
+        ]
+      },
+      "image_publisher": "example-image-publisher",
+      "image_offer": "example-image-offer",
+      "image_sku": "example-image-sku",
+      "location": "example-location",
+      "vm_size": "example-vm-size",
+      "managed_image_resource_group_name": "example-managed-image-resource-group-name",
+      "managed_image_name": "example-managed-image-name",
+      "azure_tags": {
+        "tag-one": "tag-one-value",
+        "tag-two": "tag-two-value",
+        "tag-three": "tag-three-value",
+        "tag-four": "tag-four-value"
+      },
+      "private_virtual_network_with_public_ip": true,
+      "virtual_network_name": "example-vnet-name",
+      "virtual_network_subnet_name": "example-subnet-name",
+      "virtual_network_resource_group_name": "example-vnet-resource-group",
+      "plan_info": {
+        "plan_promotion_code":"example-plan-promotion-code",
+        "plan_publisher":"example-plan-publisher",
+        "plan_product":"example-plan-product",
+        "plan_name":"example-plan-name"
+      },
+      "os_type": "Linux"
+    }
+  ],
+  "provisioners": [
+    {
+      "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'",
+      "inline": [
+        "echo '### command one ###'",
+        "echo 'this is command one'"
+      ],
+      "inline_shebang": "/bin/sh -x",
+      "type": "shell"
+    },
+    {
+      "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'",
+      "inline": [
+        "echo '### command two ###'",
+        "echo 'this is command two'"
+      ],
+      "inline_shebang": "/bin/sh -x",
+      "type": "shell"
+    },
+    {
+      "source": "files/file-one.txt",
+      "destination": "/tmp/file-one.txt",
+      "type": "file"
+    },
+    {
+      "source": "files/file-two.txt",
+      "destination": "/tmp/file-two.txt",
+      "type": "file"
+    },
+    {
+      "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo -E sh '{{ .Path }}'",
+      "inline": [
+        "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync"
+      ],
+      "inline_shebang": "/bin/sh -x",
+      "type": "shell"
+    }
+  ]
+}

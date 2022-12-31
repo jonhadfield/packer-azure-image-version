@@ -95,6 +95,7 @@ func main() {
 				&cli.BoolFlag{Name: "inc-patch"},
 				&cli.BoolFlag{Name: "unattended"},
 				&cli.BoolFlag{Name: "cli-auth"},
+				&cli.BoolFlag{Name: "public-ip"},
 			},
 			Action: func(c *cli.Context) error {
 				input := c.Args().Slice()
