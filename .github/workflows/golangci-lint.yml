@@ -11,9 +11,15 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+      - uses: actions/checkout@v7
+      # Lint with the Go that go.mod asks for. Without this the runner's
+      # default Go is used, and a linter older than go.mod's version cannot
+      # type-check the code at all.
+      - uses: actions/setup-go@v7
         with:
-          version: v1.42
+          go-version-file: go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14
           args: ./...
