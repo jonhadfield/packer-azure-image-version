@@ -45,7 +45,6 @@ func getLatestImageVersion(s *session, builder Builder) (newVer *semver.Version,
 
 	// default to 0.0.0 if no versions exist
 	if len(rawVersions) == 0 {
-		rawVersions = []string{"0.0.0"}
 		return semver.MustParse("0.0.0"), err
 	}
 
@@ -144,18 +143,11 @@ func updateJSONTemplate(v semver.Version, t *JSONTemplate, i SetImageVersionInpu
 	t.Builders[0].SharedGalleryDestination.SigDestinationImageVersion = v.String()
 
 	logrus.Debugf("setting new image version to: %s", v.String())
-
-	return
 }
 
 func encodeJSONTemplate(t JSONTemplate) (b *bytes.Buffer, err error) {
 	b = new(bytes.Buffer)
 	e := json.NewEncoder(b)
-
-	if b == nil {
-		return b, errors.New("something went wrong")
-	}
-
 	e.SetEscapeHTML(false)
 	e.SetIndent("", "  ")
 	if err = e.Encode(t); err != nil {
