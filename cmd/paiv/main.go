@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	. "github.com/jonhadfield/packer-azure-image-version"
+	paiv "github.com/jonhadfield/packer-azure-image-version"
 	"github.com/urfave/cli/v2"
 	"os"
 	"time"
@@ -65,13 +65,13 @@ func main() {
 				case 0:
 					return fmt.Errorf("image definition id is required")
 				case 1:
-					if idi := ParseImageDefinitionID(input[0]); idi.ImageName == "" {
+					if idi := paiv.ParseImageDefinitionID(input[0]); idi.ImageName == "" {
 						_ = cli.ShowSubcommandHelp(c)
 
 						return fmt.Errorf("invalid image definition id")
 					}
 
-					return GetImageVersions(GetImageVersionsInput{
+					return paiv.GetImageVersions(paiv.GetImageVersionsInput{
 						SubscriptionID:    c.String("subscription-id"),
 						ImageDefinitionID: input[0],
 						Latest:            c.Bool("latest"),
@@ -117,7 +117,7 @@ func main() {
 					return fmt.Errorf("only one increment option can be specified")
 				}
 
-				return SetImageVersions(SetImageVersionInput{
+				return paiv.SetImageVersions(paiv.SetImageVersionInput{
 					Paths:      input,
 					IncMajor:   c.Bool("inc-major"),
 					IncMinor:   c.Bool("inc-minor"),
@@ -142,7 +142,7 @@ func checkOneTrue(i ...bool) error {
 	for x := range i {
 		if i[x] {
 			if foundTrue {
-				return fmt.Errorf(strMoreThanOneTrue)
+				return errors.New(strMoreThanOneTrue)
 			}
 
 			foundTrue = true
@@ -150,7 +150,7 @@ func checkOneTrue(i ...bool) error {
 	}
 
 	if !foundTrue {
-		return fmt.Errorf(strNoneTrue)
+		return errors.New(strNoneTrue)
 	}
 
 	return nil
